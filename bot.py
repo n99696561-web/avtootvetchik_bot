@@ -5,8 +5,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import os
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "ТВОЙ_ТОКЕН_БОТА"  # ← ВСТАВЬ СВОЙ ТОКЕН
-ADMIN_ID = 123456789  # ← ВСТАВЬ СВОЙ ID
+import os
+TOKEN = os.getenv("BOT_TOKEN")  # Берётся из Render
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))  # Берётся из Render
 # =====================
 
 DB_PATH = "bot.db"
