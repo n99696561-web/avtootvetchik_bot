@@ -5,9 +5,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import os
 
 # ===== НАСТРОЙКИ =====
-import os
-TOKEN = os.getenv("BOT_TOKEN")  # Берётся из Render
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))  # Берётся из Render
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 # =====================
 
 DB_PATH = "bot.db"
@@ -171,7 +170,8 @@ class SimpleBot:
         await update.message.reply_text(text)
     
     async def admin_panel(self, update, context):
-        if update.effective_user.id != ADMIN_ID: return
+        if update.effective_user.id != ADMIN_ID:
+            return
         keyboard = [
             [InlineKeyboardButton("🎁 Подарить", callback_data="admin_gift")],
             [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
@@ -180,7 +180,8 @@ class SimpleBot:
         await update.message.reply_text("⚙️ Админ-панель", reply_markup=InlineKeyboardMarkup(keyboard))
     
     async def gift_sub(self, update, context):
-        if update.effective_user.id != ADMIN_ID: return
+        if update.effective_user.id != ADMIN_ID:
+            return
         if len(context.args) < 2:
             await update.message.reply_text("/gift USER_ID ТАРИФ\nТарифы: 1, 10, 30, 90, 365, forever")
             return
@@ -194,22 +195,23 @@ class SimpleBot:
         await update.message.reply_text(f"🎁 Подарок!\nПользователь: {target_id}\nТариф: {tariff['name']}\nДо: {sub_end.strftime('%d.%m.%Y')}")
         try:
             await context.bot.send_message(int(target_id), f"🎁 Вам подарили подписку!\nТариф: {tariff['name']}\nДо: {sub_end.strftime('%d.%m.%Y')}\n/set ВАШ ТЕКСТ")
-        except: pass
+        except:
+            pass
     
-   async def auto_reply(self, update, context):
-    # Не отвечаем ботам и себе
-    if update.effective_user.is_bot:
-        return
-    
-    user_id = str(update.effective_user.id)
-    user = get_user(user_id)
-    if not user or not user["active"]: 
-        return
-    if user["sub_end"] and datetime.fromisoformat(user["sub_end"]) < datetime.now():
-        user["active"] = False
-        save_user(user_id, user)
-        return
-    await update.message.reply_text(user["reply_text"])
+    async def auto_reply(self, update, context):
+        # Не отвечаем ботам
+        if update.effective_user.is_bot:
+            return
+        
+        user_id = str(update.effective_user.id)
+        user = get_user(user_id)
+        if not user or not user["active"]:
+            return
+        if user["sub_end"] and datetime.fromisoformat(user["sub_end"]) < datetime.now():
+            user["active"] = False
+            save_user(user_id, user)
+            return
+        await update.message.reply_text(user["reply_text"])
     
     async def handle_callback(self, update, context):
         query = update.callback_query
@@ -224,6 +226,24 @@ class SimpleBot:
         elif query.data.startswith("buy_"):
             tariff_key = query.data.replace("buy_", "")
             tariff = TARIFFS[tariff_key]
+            
+            # Админу — бесплатно
+            if query.from_user.id == ADMIN_ID:
+                sub_end = datetime.now() + timedelta(days=tariff["days"])
+                save_user(user_id, {
+                    "sub_end": sub_end.isoformat(),
+                    "reply_text": "Я сейчас занят, отвечу позже",
+                    "active": True,
+                    "tariff": tariff["name"]
+                })
+                end_text = "Навсегда ♾️" if tariff["days"] > 36500 else sub_end.strftime("%d.%m.%Y")
+                await query.message.reply_text(
+                    f"✅ Админ-доступ!\nТариф: {tariff['name']}\nАктивен до: {end_text}\n\n"
+                    f"Автоответчик включен!\n/set ВАШ ТЕКСТ"
+                )
+                return
+            
+            # Остальным — платно
             await query.message.reply_invoice(
                 title=f"Автоответчик - {tariff['name']}",
                 description=f"Подписка на {tariff['name']}",
@@ -233,7 +253,8 @@ class SimpleBot:
             )
         
         elif query.data == "admin":
-            if query.from_user.id != ADMIN_ID: return
+            if query.from_user.id != ADMIN_ID:
+                return
             kb = [[InlineKeyboardButton("🎁 Подарить", callback_data="admin_gift")],
                   [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
                   [InlineKeyboardButton("👥 Пользователи", callback_data="admin_users")],
@@ -252,9 +273,13 @@ class SimpleBot:
         
         elif query.data == "admin_users":
             users = get_all_users()[:20]
-            text = "👥 Пользователи:\n\n" + "\n".join(
-                f"`{u['user_id']}` | {'♾️' if (d:=(datetime.fromisoformat(u['sub_end'])-datetime.now()).days if u['sub_end'] else 0) > 36500 else f'✅ {d}д' if u['sub_end'] and datetime.fromisoformat(u['sub_end']) > datetime.now() else '❌'} | {u.get('tariff','-')}"
-                for u in users)
+            text = "👥 Пользователи:\n\n"
+            for u in users:
+                sub = "❌"
+                if u["sub_end"] and datetime.fromisoformat(u["sub_end"]) > datetime.now():
+                    d = (datetime.fromisoformat(u["sub_end"]) - datetime.now()).days
+                    sub = "♾️" if d > 36500 else f"✅ {d}д"
+                text += f"`{u['user_id']}` | {sub} | {u.get('tariff', '-')}\n"
             await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад", callback_data="admin")]]), parse_mode="Markdown")
         
         elif query.data == "on":
