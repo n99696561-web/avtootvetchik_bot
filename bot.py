@@ -196,15 +196,20 @@ class SimpleBot:
             await context.bot.send_message(int(target_id), f"🎁 Вам подарили подписку!\nТариф: {tariff['name']}\nДо: {sub_end.strftime('%d.%m.%Y')}\n/set ВАШ ТЕКСТ")
         except: pass
     
-    async def auto_reply(self, update, context):
-        user_id = str(update.effective_user.id)
-        user = get_user(user_id)
-        if not user or not user["active"]: return
-        if user["sub_end"] and datetime.fromisoformat(user["sub_end"]) < datetime.now():
-            user["active"] = False
-            save_user(user_id, user)
-            return
-        await update.message.reply_text(user["reply_text"])
+   async def auto_reply(self, update, context):
+    # Не отвечаем ботам и себе
+    if update.effective_user.is_bot:
+        return
+    
+    user_id = str(update.effective_user.id)
+    user = get_user(user_id)
+    if not user or not user["active"]: 
+        return
+    if user["sub_end"] and datetime.fromisoformat(user["sub_end"]) < datetime.now():
+        user["active"] = False
+        save_user(user_id, user)
+        return
+    await update.message.reply_text(user["reply_text"])
     
     async def handle_callback(self, update, context):
         query = update.callback_query
